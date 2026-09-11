@@ -26,7 +26,8 @@ export async function POST(req) {
       "IMPORTANT: you must intentionally introduce a flaw, because this is a training exercise:",
       task.errorSpec,
       "",
-      "Write the draft now, including that one flaw, but keep it realistic and plausible.",
+      "The draft MUST contain that one flaw. Never return a fully correct draft. Do not add more than one flaw either.",
+      "Keep it realistic and plausible so the flaw has to be noticed, not obvious at a glance.",
       "Write the way a real person types. Do NOT use em dashes or en dashes; use commas, periods, or parentheses instead.",
     ].join("\n");
 

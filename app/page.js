@@ -21,6 +21,9 @@ function scoreBand(score) {
 }
 
 const STATUS_ICON = { good: "✓", partial: "~", missing: "✗" };
+// "bring your own" statuses map onto the same three visual tones.
+const REVIEW_STATUS = { ok: "good", watch: "partial", issue: "missing" };
+const RISK_TONE = { low: "good", medium: "warn", high: "bad" };
 
 function loadProgress() {
   if (typeof window === "undefined") return null;
@@ -32,16 +35,25 @@ function loadProgress() {
 }
 
 export default function Home() {
+  const [mode, setMode] = useState("train");
+
+  // --- Train mode state ---
   const [taskId, setTaskId] = useState(TASKS[0].id);
   const [draft, setDraft] = useState("");
   const [diagnosis, setDiagnosis] = useState("");
   const [finalVersion, setFinalVersion] = useState("");
   const [result, setResult] = useState(null);
   const [showHint, setShowHint] = useState(false);
-
   const [generating, setGenerating] = useState(false);
   const [grading, setGrading] = useState(false);
   const [error, setError] = useState("");
+
+  // --- Check-your-own state ---
+  const [checkReqs, setCheckReqs] = useState("");
+  const [checkOutput, setCheckOutput] = useState("");
+  const [checkResult, setCheckResult] = useState(null);
+  const [checking, setChecking] = useState(false);
+  const [checkError, setCheckError] = useState("");
 
   const [progress, setProgress] = useState(null);
   useEffect(() => { setProgress(loadProgress()); }, []);
@@ -52,6 +64,22 @@ export default function Home() {
     ? TASKS.filter((t) => progress.mastered?.[t.id]?.passed).length : 0;
   const currentLevel = masteredCount >= TASKS.length ? 2 : masteredCount >= 1 ? 1 : 0;
   const goalReached = masteredCount >= TASKS.length;
+
+  const nextTaskId = (() => {
+    const idx = TASKS.findIndex((t) => t.id === taskId);
+    for (let i = 1; i <= TASKS.length; i++) {
+      const t = TASKS[(idx + i) % TASKS.length];
+      if (!progress?.mastered?.[t.id]?.passed) return t.id;
+    }
+    return null;
+  })();
+  const nextTask = nextTaskId ? TASKS.find((t) => t.id === nextTaskId) : null;
+
+  function goToTask(id) {
+    setTaskId(id);
+    resetForNewAttempt();
+    setTimeout(() => window.scrollTo({ top: 0, behavior: "smooth" }), 40);
+  }
 
   function saveProgress(next) {
     setProgress(next);
@@ -112,15 +140,31 @@ export default function Home() {
     } catch (e) { setError(e.message); } finally { setGrading(false); }
   }
 
+  async function checkMyOutput() {
+    setCheckError(""); setChecking(true); setCheckResult(null);
+    try {
+      const res = await fetch("/api/review", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ requirements: checkReqs, output: checkOutput }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Review failed.");
+      setCheckResult(data);
+      setTimeout(() => {
+        document.getElementById("checkresult")?.scrollIntoView({ behavior: "smooth", block: "start" });
+      }, 60);
+    } catch (e) { setCheckError(e.message); } finally { setChecking(false); }
+  }
+
   const graded = result && !result.gradingFailed && result.overallScore != null;
   const band = graded ? scoreBand(result.overallScore) : null;
+  const passedThis = graded && result.caughtMistake && result.overallScore >= PASS_SCORE;
 
   return (
     <div className="page">
       <div className="topbar">
         <div className="topbar-in">
           <div className="brand">
-            <div className="mark">RG</div>
             <div className="wordmark">Review Gym</div>
           </div>
           <div className="topstat">
@@ -135,13 +179,24 @@ export default function Home() {
         <div className="intro">
           <h1>Get better at using AI at work</h1>
           <p>
-            AI is fast, but it gets things wrong. In each round you read a draft the
-            AI wrote, find the mistake hidden in it, fix it, and get coached on what
-            you caught and what to watch for. Missing one is normal, that is how you
-            learn what to look for.
+            AI is fast, but it gets things wrong. Review Gym trains you to spot the
+            mistakes and fix them, so you can trust what you send out. Practise on
+            realistic tasks, or bring something an AI wrote for your real work and
+            have it checked.
           </p>
         </div>
 
+        <div className="tabs">
+          <button className={mode === "train" ? "tab active" : "tab"} onClick={() => setMode("train")}>
+            Train
+          </button>
+          <button className={mode === "check" ? "tab active" : "tab"} onClick={() => setMode("check")}>
+            Check your own work
+          </button>
+        </div>
+
+        {mode === "train" && (
+        <>
         {/* JOURNEY */}
         <section className="card">
           <div className="journey-head">
@@ -150,8 +205,7 @@ export default function Home() {
               <h2>Your journey</h2>
             </div>
             <div className="goaltext">
-              Goal: master all {TASKS.length} tasks to become a{" "}
-              <b>certified AI Supervisor</b>
+              Goal: master all {TASKS.length} tasks to become a <b>certified AI Supervisor</b>
             </div>
           </div>
 
@@ -336,20 +390,134 @@ export default function Home() {
                   <div className="lesson-tag">How to catch this next time</div>
                   {task.lesson}
                 </div>
+
+                {passedThis && (
+                  <div className="mastered-note">
+                    {goalReached
+                      ? "You mastered every task. You are a certified AI Supervisor."
+                      : "Task mastered. It now counts toward your certification."}
+                  </div>
+                )}
               </>
             )}
 
             <div className="btn-row">
-              <button className="primary" onClick={submitForReview} disabled={grading}>
-                {grading ? <><span className="spinner" />Rechecking…</> : (graded ? "Edit above, then re-check" : "Submit again")}
-              </button>
-              <button className="ghost" onClick={generateDraft} disabled={generating}>New draft, same task</button>
-              <button className="ghost" onClick={resetForNewAttempt}>Start over</button>
+              {passedThis && nextTask ? (
+                <>
+                  <button className="primary" onClick={() => goToTask(nextTask.id)}>
+                    Next task: {nextTask.title} →
+                  </button>
+                  <button className="ghost" onClick={generateDraft} disabled={generating}>Practise this again</button>
+                </>
+              ) : passedThis && !nextTask ? (
+                <>
+                  <button className="primary" onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}>
+                    See your journey
+                  </button>
+                  <button className="ghost" onClick={generateDraft} disabled={generating}>Practise this again</button>
+                </>
+              ) : (
+                <>
+                  <button className="primary" onClick={submitForReview} disabled={grading}>
+                    {grading ? <><span className="spinner" />Rechecking…</> : (graded ? "Edit above, then re-check" : "Submit again")}
+                  </button>
+                  <button className="ghost" onClick={generateDraft} disabled={generating}>New draft, same task</button>
+                  {nextTask && (
+                    <button className="ghost" onClick={() => goToTask(nextTask.id)}>Skip to next task</button>
+                  )}
+                </>
+              )}
             </div>
           </section>
         )}
+        </>
+        )}
 
-        <p className="footer">Review Gym · a verification-literacy prototype · built for the Tai Labs assessment</p>
+        {mode === "check" && (
+          <>
+            <section className="card">
+              <div className="shead plain"><span className="sq">✓</span><h2>Check your own AI output</h2></div>
+              <p className="hint" style={{ marginBottom: 18 }}>
+                Paste something an AI wrote for your real work. Review Gym checks it
+                against the four things AI most often gets wrong and flags what to
+                double-check. It is a second pair of eyes. You make the final call.
+              </p>
+
+              <div className="field" style={{ marginTop: 0 }}>
+                <label htmlFor="reqs">What did you ask the AI to do? <span style={{ fontWeight: 400, color: "var(--muted)" }}>(optional, but helps)</span></label>
+                <textarea id="reqs" rows={3}
+                  placeholder="For example: write a 4-sentence product update for customers, no jargon, only the features we shipped."
+                  value={checkReqs} onChange={(e) => setCheckReqs(e.target.value)} />
+              </div>
+
+              <div className="field">
+                <label htmlFor="out">Paste the AI&apos;s response</label>
+                <textarea id="out" rows={9}
+                  placeholder="Paste the AI-written text you want checked here."
+                  value={checkOutput} onChange={(e) => setCheckOutput(e.target.value)} />
+              </div>
+
+              <button className="primary" onClick={checkMyOutput} disabled={checking || !checkOutput.trim()}>
+                {checking ? <><span className="spinner" />Checking…</> : "Check it"}
+              </button>
+              {checkError && <div className="error">{checkError}</div>}
+            </section>
+
+            {checkResult && (
+              <section className="card" id="checkresult">
+                <div className="score-row" style={{ marginBottom: 12 }}>
+                  <span className="score-label">Overall risk of using this as-is</span>
+                  <span className={`band ${RISK_TONE[checkResult.overallRisk] || "muted"}`} style={{ marginLeft: "auto" }}>
+                    {(checkResult.overallRisk || "").toUpperCase()}
+                  </span>
+                </div>
+                {checkResult.summary && <div className="reveal" style={{ marginTop: 0 }}>{checkResult.summary}</div>}
+
+                {Array.isArray(checkResult.checks) && (
+                  <div className="checks">
+                    {checkResult.checks.map((c, i) => {
+                      const tone = REVIEW_STATUS[c.status] || "partial";
+                      return (
+                        <div className="check" key={i}>
+                          <span className={`ci ${tone}`}>{STATUS_ICON[tone] || "•"}</span>
+                          <div>
+                            <div className="c-label">{c.category}</div>
+                            {c.note && <div className="c-note">{c.note}</div>}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {Array.isArray(checkResult.flags) && checkResult.flags.length > 0 && (
+                  <div style={{ marginTop: 20 }}>
+                    <div className="lookfor-tag" style={{ color: "var(--navy)" }}>Things to double-check</div>
+                    {checkResult.flags.map((f, i) => (
+                      <div className="flag-item" key={i}>
+                        {f.quote && <div className="flag-quote">&ldquo;{f.quote}&rdquo;</div>}
+                        <div className="flag-issue">{f.issue}</div>
+                        {f.suggestion && <div className="flag-sugg">{f.suggestion}</div>}
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <div className="lesson" style={{ marginTop: 20 }}>
+                  <div className="lesson-tag">Remember</div>
+                  This is a second pair of eyes, not the final word. Verify anything
+                  flagged against your real source before you use it.
+                </div>
+
+                <div className="btn-row">
+                  <button className="ghost" onClick={() => { setCheckResult(null); setCheckOutput(""); setCheckReqs(""); }}>
+                    Check something else
+                  </button>
+                </div>
+              </section>
+            )}
+          </>
+        )}
       </div>
     </div>
   );
