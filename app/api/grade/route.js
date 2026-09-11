@@ -45,7 +45,7 @@ function buildPrompt(task, draft, diagnosis, finalVersion, extraStrict) {
 async function gradeOnce(task, draft, diagnosis, finalVersion, strict) {
   const raw = await callGemini(
     buildPrompt(task, draft, diagnosis, finalVersion, strict),
-    { temperature: strict ? 0 : 0.2, json: true, maxOutputTokens: 1536 }
+    { temperature: strict ? 0 : 0.2, json: true, maxOutputTokens: 3072 }
   );
   return parseJsonFromModel(raw);
 }

@@ -32,7 +32,7 @@ export async function POST(req) {
 
     const draft = await callGemini(prompt, {
       temperature: 0.9,
-      maxOutputTokens: 1024,
+      maxOutputTokens: 2048,
     });
 
     return NextResponse.json({ draft: draft.trim() });
