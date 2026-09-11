@@ -4,10 +4,8 @@ import { callGemini, parseJsonFromModel } from "../../../lib/gemini";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-// "Bring your own AI output" — the person pastes something an AI wrote for their
-// real work. We do NOT grade the person here (there is no planted mistake).
-// Instead we act as a second pair of eyes: check the output against the four
-// common failure modes and flag specific things to verify. The human decides.
+// Checks a real AI output the user pastes in. Not a grade of the user, just a
+// review against the four failure modes with specific things to verify.
 const REVIEW_SCHEMA = {
   type: "object",
   properties: {

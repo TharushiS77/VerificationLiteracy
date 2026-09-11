@@ -2,7 +2,6 @@ import { NextResponse } from "next/server";
 import { callGemini } from "../../../lib/gemini";
 import { getTask } from "../../../lib/tasks";
 
-// Runs on the server (Node/serverless), so the API key stays secret.
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
@@ -14,8 +13,7 @@ export async function POST(req) {
       return NextResponse.json({ error: "Unknown task." }, { status: 400 });
     }
 
-    // The generator is deliberately told to inject ONE realistic flaw
-    // (the errorSpec). That flaw description is NEVER returned to the client.
+    // errorSpec stays server-side so the planted mistake isn't sent to the client.
     const prompt = [
       "You are simulating a busy employee who used an AI assistant to do a task quickly.",
       "Produce ONLY the finished draft. No preamble, no notes, no explanation, no headings like 'Draft:'.",

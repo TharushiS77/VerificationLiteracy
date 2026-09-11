@@ -70,8 +70,8 @@ export async function POST(req) {
       }
     }
 
-    // Basic shape guard. If anything essential is missing, treat as not graded
-    // so the UI shows a neutral "could not score" state, never a false "miss".
+    // If the score is missing, mark it not graded so the UI shows a neutral
+    // "couldn't score" state instead of a false miss.
     if (!result || typeof result.overallScore !== "number") {
       return NextResponse.json({
         gradingFailed: true,
