@@ -18,18 +18,22 @@ export async function POST(req) {
     // (the errorSpec). That flaw description is NEVER returned to the client.
     const prompt = [
       "You are simulating a busy employee who used an AI assistant to do a task quickly.",
-      "Produce ONLY the finished draft (no preamble, no notes, no explanation).",
+      "Produce ONLY the finished draft. No preamble, no notes, no explanation, no headings like 'Draft:'.",
       "",
       "TASK BRIEF:",
       task.brief,
       "",
-      "IMPORTANT — you must intentionally introduce a flaw, because this is a training exercise:",
+      "IMPORTANT: you must intentionally introduce a flaw, because this is a training exercise:",
       task.errorSpec,
       "",
       "Write the draft now, including that one flaw, but keep it realistic and plausible.",
+      "Write the way a real person types. Do NOT use em dashes or en dashes; use commas, periods, or parentheses instead.",
     ].join("\n");
 
-    const draft = await callGemini(prompt, { temperature: 0.9 });
+    const draft = await callGemini(prompt, {
+      temperature: 0.9,
+      maxOutputTokens: 900,
+    });
 
     return NextResponse.json({ draft: draft.trim() });
   } catch (err) {
